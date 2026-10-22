@@ -20,8 +20,9 @@ $pageTitle = $pageTitle ?? 'Sistem Karyawan';
                 <?php if (isAdmin()): ?>
                     <a class="hover:underline" href="<?= e(appUrl('admin/index.php')) ?>">Dashboard</a>
                     <a class="hover:underline" href="<?= e(appUrl('karyawan/index.php')) ?>">Karyawan</a>
-                    <a class="hover:underline" href="<?= e(appUrl('admin/index.php#laporan')) ?>">Absensi</a>
-                    <a class="hover:underline" href="<?= e(appUrl('admin/index.php#laporan')) ?>">Laporan</a>
+                    <a class="hover:underline" href="<?= e(appUrl('admin/absensi.php')) ?>">Absensi</a>
+                    <a class="hover:underline" href="<?= e(appUrl('admin/laporan.php')) ?>">Laporan</a>
+                    <a class="hover:underline" href="<?= e(appUrl('admin/izin.php')) ?>">Pengajuan Izin</a>
                     <a class="hover:underline" href="<?= e(appUrl('auth/logout.php')) ?>">Logout</a>
                 <?php elseif (isKaryawan()): ?>
                     <a class="hover:underline" href="<?= e(appUrl('absensi/index.php')) ?>">Absensi</a>

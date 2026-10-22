@@ -51,7 +51,7 @@ Folder dan file fitur akan dilengkapi bertahap. `config/config.php` nantinya men
 
 ## Database
 
-Impor `database.sql` melalui phpMyAdmin atau MySQL untuk membuat database `db_karyawan` dan tabelnya. Jalankan `seed_admin.php` untuk membuat akun admin `admin` dengan nomor `6281234567890` dan password acak.
+Impor `database.sql` melalui phpMyAdmin atau MySQL untuk membuat database `db_karyawan` dan tabelnya, termasuk pengaturan jadwal default (masuk 08:00 dan pulang 17:00) serta pengajuan izin. Jika database sudah ada, jalankan kembali `database.sql` agar tabel baru ditambahkan; perintah pembuatan tabel menggunakan `IF NOT EXISTS` dan tidak menghapus data. Admin dapat mengatur jadwal dari dashboard. Absensi di luar jadwal tetap dicatat sebagai terlambat atau pulang awal. Karyawan dapat mengajukan izin pulang cepat, sakit, atau tidak masuk; admin meninjau dari menu Pengajuan Izin. Pengajuan sakit wajib menyertakan surat PDF/JPG/PNG maksimal 5 MB. File disimpan di `storage/izin` dan dilindungi agar tidak dapat diakses langsung melalui web. Izin sakit/tidak masuk yang disetujui otomatis tercatat pada laporan absensi.
 
 ## Konfigurasi lokal
 
@@ -84,6 +84,8 @@ Pastikan waktu PHP dan MySQL sesuai zona waktu lokal. Pengiriman WhatsApp memerl
 - [ ] Hapus karyawan; konfirmasi muncul dan notifikasi berhasil dikirim sebelum data dihapus. Bila pengiriman gagal, data harus tetap ada.
 - [ ] Karyawan absen masuk; data tercatat sekali untuk hari tersebut, pesan masuk terkirim, dan absen kedua ditolak.
 - [ ] Karyawan absen pulang setelah masuk; jam pulang dan status diperbarui, pesan pulang terkirim, dan absen pulang kedua ditolak.
+- [ ] Karyawan mengajukan izin pulang cepat, sakit (dengan lampiran), dan tidak masuk; pengajuan terlihat di admin, dapat disetujui/ditolak, serta izin sakit/tidak masuk yang disetujui muncul di absensi.
+- [ ] Uji validasi izin: tanggal lampau/rentang lebih dari 31 hari, alasan kosong, surat sakit tidak dilampirkan, format lampiran tidak didukung, lampiran lebih dari 5 MB, dan tanggal pengajuan bertumpang tindih.
 - [ ] Uji laporan admin dengan beberapa tanggal serta statistik total, sudah absen, belum absen, dan sudah pulang.
 - [ ] Akses halaman admin sebagai karyawan dan halaman karyawan sebagai admin; akses yang tidak sesuai harus ditolak.
 - [ ] Pastikan token Fonnte tidak muncul di halaman atau file yang dilacak Git.

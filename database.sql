@@ -37,3 +37,33 @@ CREATE TABLE IF NOT EXISTS admin (
     no_hp VARCHAR(20) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pengaturan_absensi (
+    id TINYINT UNSIGNED PRIMARY KEY,
+    jam_masuk TIME NOT NULL DEFAULT '08:00:00',
+    jam_pulang TIME NOT NULL DEFAULT '17:00:00'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO pengaturan_absensi (id, jam_masuk, jam_pulang)
+VALUES (1, '08:00:00', '17:00:00');
+
+CREATE TABLE IF NOT EXISTS pengajuan_izin (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_karyawan INT NOT NULL,
+    jenis ENUM('PULANG_CEPAT', 'SAKIT', 'TIDAK_MASUK') NOT NULL,
+    tanggal_mulai DATE NOT NULL,
+    tanggal_selesai DATE NOT NULL,
+    alasan TEXT NOT NULL,
+    lampiran VARCHAR(255) NULL,
+    status ENUM('MENUNGGU', 'DISETUJUI', 'DITOLAK') NOT NULL DEFAULT 'MENUNGGU',
+    catatan_admin VARCHAR(500) NULL,
+    id_admin INT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME NULL,
+    INDEX idx_pengajuan_izin_status_tanggal (status, tanggal_mulai, tanggal_selesai),
+    INDEX idx_pengajuan_izin_karyawan (id_karyawan, created_at),
+    CONSTRAINT fk_pengajuan_izin_karyawan
+        FOREIGN KEY (id_karyawan) REFERENCES karyawan(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pengajuan_izin_admin
+        FOREIGN KEY (id_admin) REFERENCES admin(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

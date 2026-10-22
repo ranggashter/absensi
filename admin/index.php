@@ -4,11 +4,47 @@ require_once __DIR__ . '/../includes/auth_check.php';
 requireAdmin();
 require __DIR__ . '/../config/database.php';
 
-$date = trim((string) ($_GET['tanggal'] ?? date('Y-m-d')));
-$dateObject = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-if (!$dateObject || $dateObject->format('Y-m-d') !== $date) {
-    $date = date('Y-m-d');
+$settingsMessage = '';
+$settingsError = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $jamMasuk = trim((string) ($_POST['jam_masuk'] ?? ''));
+    $jamPulang = trim((string) ($_POST['jam_pulang'] ?? ''));
+
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? null)) {
+        $settingsError = 'Sesi formulir tidak valid. Muat ulang halaman dan coba lagi.';
+    } elseif (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $jamMasuk)
+        || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $jamPulang)) {
+        $settingsError = 'Masukkan jam yang valid dalam format 24 jam.';
+    } elseif ($jamMasuk >= $jamPulang) {
+        $settingsError = 'Jam pulang harus lebih akhir daripada jam masuk.';
+    } else {
+        $saveSettings = $pdo->prepare(
+            'UPDATE pengaturan_absensi SET jam_masuk = :jam_masuk, jam_pulang = :jam_pulang WHERE id = 1'
+        );
+        $saveSettings->execute([
+            'jam_masuk' => $jamMasuk,
+            'jam_pulang' => $jamPulang,
+        ]);
+        $settingsMessage = 'Pengaturan jam absensi berhasil disimpan.';
+    }
 }
+
+$settingsQuery = $pdo->prepare(
+    "SELECT TIME_FORMAT(jam_masuk, '%H:%i') AS jam_masuk,
+            TIME_FORMAT(jam_pulang, '%H:%i') AS jam_pulang
+     FROM pengaturan_absensi WHERE id = 1"
+);
+$settingsQuery->execute();
+$attendanceSettings = $settingsQuery->fetch();
+if (!$attendanceSettings) {
+    throw new RuntimeException('Pengaturan absensi belum tersedia. Jalankan pembaruan database.sql.');
+}
+$formJamMasuk = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? $jamMasuk
+    : $attendanceSettings['jam_masuk'];
+$formJamPulang = $_SERVER['REQUEST_METHOD'] === 'POST'
+    ? $jamPulang
+    : $attendanceSettings['jam_pulang'];
 
 $employeeCountQuery = $pdo->prepare('SELECT COUNT(*) FROM karyawan');
 $employeeCountQuery->execute();
@@ -23,17 +59,11 @@ $todayStats = $todayQuery->fetch();
 $checkedIn = (int) $todayStats['sudah_absen'];
 $checkedOut = (int) $todayStats['sudah_pulang'];
 $notCheckedIn = max(0, $totalEmployees - $checkedIn);
-
-$reportQuery = $pdo->prepare(
-    'SELECT k.nama, k.nik, a.tanggal, a.jam_masuk, a.jam_pulang, a.status
-     FROM absensi a
-     INNER JOIN karyawan k ON k.id = a.id_karyawan
-     WHERE a.tanggal = :tanggal
-     ORDER BY k.nama
-     LIMIT 500'
+$pendingRequestsQuery = $pdo->prepare(
+    "SELECT COUNT(*) FROM pengajuan_izin WHERE status = 'MENUNGGU'"
 );
-$reportQuery->execute(['tanggal' => $date]);
-$report = $reportQuery->fetchAll();
+$pendingRequestsQuery->execute();
+$pendingLeaveRequests = (int) $pendingRequestsQuery->fetchColumn();
 
 $pageTitle = 'Dashboard Admin';
 require __DIR__ . '/../includes/header.php';
@@ -55,43 +85,33 @@ require __DIR__ . '/../includes/header.php';
         </div>
     <?php endforeach; ?>
 </section>
-<section id="laporan" class="rounded-lg bg-white p-6 shadow">
-    <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <h2 class="text-xl font-bold">Laporan Absensi</h2>
-        <form method="get" class="flex flex-wrap items-end gap-2">
-            <label class="font-medium">Filter tanggal
-                <input class="mt-1 block rounded border p-2" type="date" name="tanggal" value="<?= e($date) ?>" required>
-            </label>
-            <button class="rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700" type="submit">Tampilkan</button>
-        </form>
+<section class="rounded-lg bg-white p-6 shadow">
+    <h2 class="text-xl font-bold">Kelola Kehadiran</h2>
+    <p class="mt-2 text-gray-600">Lihat absensi hari ini atau telusuri laporan kehadiran berdasarkan tanggal.</p>
+    <div class="mt-5 flex flex-wrap gap-3">
+        <a class="rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700" href="<?= e(appUrl('admin/absensi.php')) ?>">Lihat Absensi Hari Ini</a>
+        <a class="rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-100" href="<?= e(appUrl('admin/laporan.php')) ?>">Buka Laporan</a>
+        <a class="rounded border border-gray-300 px-4 py-2 text-gray-900 hover:bg-gray-100" href="<?= e(appUrl('admin/izin.php')) ?>">Tinjau Izin (<?= e($pendingLeaveRequests) ?> menunggu)</a>
     </div>
-    <p class="mb-3 text-sm text-gray-600">Menampilkan maksimal 500 catatan untuk tanggal <?= e($date) ?>.</p>
-    <div class="overflow-x-auto">
-        <table class="w-full border-collapse">
-            <thead class="bg-gray-200"><tr>
-                <th class="border p-2 text-left">No</th>
-                <th class="border p-2 text-left">Nama</th>
-                <th class="border p-2 text-left">NIK</th>
-                <th class="border p-2 text-left">Tanggal</th>
-                <th class="border p-2 text-left">Masuk</th>
-                <th class="border p-2 text-left">Pulang</th>
-                <th class="border p-2 text-left">Status</th>
-            </tr></thead>
-            <tbody>
-            <?php if (!$report): ?><tr><td class="border p-3 text-center" colspan="7">Tidak ada catatan absensi pada tanggal ini.</td></tr><?php endif; ?>
-            <?php foreach ($report as $index => $row): ?>
-                <tr>
-                    <td class="border p-2"><?= e($index + 1) ?></td>
-                    <td class="border p-2"><?= e($row['nama']) ?></td>
-                    <td class="border p-2"><?= e($row['nik']) ?></td>
-                    <td class="border p-2"><?= e($row['tanggal']) ?></td>
-                    <td class="border p-2"><?= e($row['jam_masuk'] ?? '-') ?></td>
-                    <td class="border p-2"><?= e($row['jam_pulang'] ?? '-') ?></td>
-                    <td class="border p-2"><?= e($row['status']) ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
+</section>
+<section class="mt-6 rounded-lg bg-white p-6 shadow">
+    <h2 class="text-xl font-bold">Pengaturan Jam Absensi</h2>
+    <p class="mt-2 mb-5 text-gray-600">Absensi di luar jadwal tetap dicatat dan diberi status terlambat atau pulang awal.</p>
+    <?php if ($settingsMessage !== ''): ?>
+        <div class="mb-4 rounded border border-green-500 bg-green-100 p-3 text-green-700"><?= e($settingsMessage) ?></div>
+    <?php endif; ?>
+    <?php if ($settingsError !== ''): ?>
+        <div class="mb-4 rounded border border-red-500 bg-red-100 p-3 text-red-700"><?= e($settingsError) ?></div>
+    <?php endif; ?>
+    <form method="post" class="flex flex-wrap items-end gap-4">
+        <input type="hidden" name="csrf_token" value="<?= e(csrfToken()) ?>">
+        <label class="block font-medium">Batas jam masuk
+            <input class="mt-1 block rounded border p-2" type="time" name="jam_masuk" value="<?= e($formJamMasuk) ?>" required>
+        </label>
+        <label class="block font-medium">Jadwal jam pulang
+            <input class="mt-1 block rounded border p-2" type="time" name="jam_pulang" value="<?= e($formJamPulang) ?>" required>
+        </label>
+        <button class="rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700" type="submit">Simpan Jadwal</button>
+    </form>
 </section>
 <?php require __DIR__ . '/../includes/footer.php'; ?>
